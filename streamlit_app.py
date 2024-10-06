@@ -6,6 +6,8 @@ from folium.plugins import Draw, MeasureControl
 import matplotlib.pyplot as plt
 import pandas as pd
 from io import BytesIO
+import os
+import tempfile
 from datetime import datetime
 
 # Set Streamlit page configuration for a clean UI
@@ -79,14 +81,18 @@ def create_map(map_type="precipitation", user_location=None, layer_type="OpenWea
 
     return m
 
-# Function to generate a PDF
 
+
+# Function to generate a PDF
+# Function to generate a PDF
 def generate_pdf(weather_data, ndvi_value, lat, lon):
     buffer = BytesIO()
-
+    report_date = datetime.today().strftime('%Y-%m-%d')
+    
     if weather_data and 'properties' in weather_data:
         params = weather_data['properties'].get('parameter', {})
         
+        # Extracting data for the report
         temp_data = params.get('T2M', {})
         precipitation_data = params.get('PRECTOTCORR', {})
         wind_data = params.get('WS2M', {})
@@ -99,130 +105,67 @@ def generate_pdf(weather_data, ndvi_value, lat, lon):
         humidity = list(humidity_data.values())
 
         df = pd.DataFrame({
-            'date': dates,
+            'Date': dates,
             'Temperature (°C)': temps,
             'Precipitation (mm)': precipitation,
             'Wind Speed (m/s)': wind_speeds,
             'Humidity (%)': humidity
         })
 
-        fig, ax = plt.subplots(2, 1, figsize=(8, 10))
+        # Plotting weather data
+        fig, ax = plt.subplots(2, 1, figsize=(10, 12))
         
-        ax[0].plot(df['date'], df['Temperature (°C)'], label="Temperature", color='tab:red')
-        ax[0].plot(df['date'], df['Precipitation (mm)'], label="Precipitation", color='tab:blue')
+        ax[0].plot(df['Date'], df['Temperature (°C)'], label="Temperature", color='tab:red')
+        ax[0].plot(df['Date'], df['Precipitation (mm)'], label="Precipitation", color='tab:blue')
+        ax[0].set_title("Temperature and Precipitation Over Time")
         ax[0].set_xlabel("Date")
         ax[0].set_ylabel("Temperature (°C) / Precipitation (mm)")
-        ax[0].legend(loc="upper left")
-        
-        ax[1].plot(df['date'], df['Wind Speed (m/s)'], label="Wind Speed", color='tab:green')
-        ax[1].plot(df['date'], df['Humidity (%)'], label="Humidity", color='tab:purple')
+        ax[0].legend()
+
+        ax[1].plot(df['Date'], df['Wind Speed (m/s)'], label="Wind Speed", color='tab:green')
+        ax[1].plot(df['Date'], df['Humidity (%)'], label="Humidity", color='tab:purple')
+        ax[1].set_title("Wind Speed and Humidity Over Time")
         ax[1].set_xlabel("Date")
         ax[1].set_ylabel("Wind Speed (m/s) / Humidity (%)")
-        ax[1].legend(loc="upper left")
+        ax[1].legend()
 
-        fig.suptitle(f"Weather Report for Latitude: {lat}, Longitude: {lon}")
         plt.tight_layout()
-
         plt.savefig(buffer, format='pdf')
         buffer.seek(0)
-        return buffer
+        
+        # Report content
+        avg_temp = round(sum(temps) / len(temps), 2)
+        total_precipitation = round(sum(precipitation), 2)
+        avg_wind_speed = round(sum(wind_speeds) / len(wind_speeds), 2)
+        avg_humidity = round(sum(humidity) / len(humidity), 2)
 
-# Function to generate a PDF
-# def generate_pdf(weather_data, ndvi_value, lat, lon, specific_location, report_date):
-#     buffer = BytesIO()
+        report_content = f"""
+        Kenya Farmer Weather Report
+        Report Date: {report_date}
+        Location: Latitude: {lat}, Longitude: {lon}
+        
+        Weather Overview:
+        This report provides critical data to help maize farmers make informed decisions about crop management and field operations. The following weather parameters are crucial for maize growth: temperature, precipitation, wind speed, and humidity.
 
-#     if weather_data and 'properties' in weather_data:
-#         params = weather_data['properties'].get('parameter', {})
+        Key Parameters:
+        - Temperature: Average of {avg_temp}°C (Optimal range: 18°C - 32°C for maize growth).
+        - Precipitation: Total of {total_precipitation} mm (Optimal: 450-600 mm/month).
+        - Wind Speed: Average of {avg_wind_speed} m/s (Optimal: < 3 m/s for crop stability).
+        - Humidity: Average of {avg_humidity}% (Optimal range: 60% - 80%).
 
-#         temp_data = params.get('T2M', {})
-#         precipitation_data = params.get('PRECTOTCORR', {})
-#         wind_data = params.get('WS2M', {})
-#         humidity_data = params.get('RH2M', {})
+        NDVI Value: {ndvi_value}
 
-#         dates = list(temp_data.keys())
-#         temps = list(temp_data.values())
-#         precipitation = list(precipitation_data.values())
-#         wind_speeds = list(wind_data.values())
-#         humidity = list(humidity_data.values())
-
-#         df = pd.DataFrame({
-#             'Date': dates,
-#             'Temperature (°C)': temps,
-#             'Precipitation (mm)': precipitation,
-#             'Wind Speed (m/s)': wind_speeds,
-#             'Humidity (%)': humidity
-#         })
-
-#         fig, ax = plt.subplots(2, 1, figsize=(8, 10))
-
-#         ax[0].plot(df['Date'], df['Temperature (°C)'], label="Temperature", color='tab:red')
-#         ax[0].plot(df['Date'], df['Precipitation (mm)'], label="Precipitation", color='tab:blue')
-#         ax[0].set_xlabel("Date")
-#         ax[0].set_ylabel("Temperature (°C) / Precipitation (mm)")
-#         ax[0].legend(loc="upper left")
-
-#         ax[1].plot(df['Date'], df['Wind Speed (m/s)'], label="Wind Speed", color='tab:green')
-#         ax[1].plot(df['Date'], df['Humidity (%)'], label="Humidity", color='tab:purple')
-#         ax[1].set_xlabel("Date")
-#         ax[1].set_ylabel("Wind Speed (m/s) / Humidity (%)")
-#         ax[1].legend(loc="upper left")
-
-#         fig.suptitle(f"Weather Report for Latitude: {lat}, Longitude: {lon}", fontsize=14)
-#         plt.tight_layout()
-
-#         # Save the plots to the PDF
-#         plt.savefig(buffer, format='pdf')
-#         buffer.seek(0)
-
-#         # Add the report text content
-#         pdf_content = f"""
-#         Kenya Farmer Weather Report
-#         Report Date: {report_date}
-#         Location: {specific_location}
-
-#         Weather Overview for Maize Growth
-#         This weather report provides critical data to help maize farmers make informed decisions about crop management and field operations. The following weather parameters are crucial for maize growth: temperature, precipitation, wind speed, and humidity.
-
-#         Key Weather Parameters
-#         - Temperature: The average daily temperature is critical for maize germination and growth, affecting plant metabolism.
-#         - Precipitation: Adequate rainfall is necessary for maize to thrive, especially during key growth stages.
-#         - Wind Speed: High wind speeds can affect pollen distribution and plant stability.
-#         - Humidity: Moisture in the air contributes to the crop’s transpiration process.
-
-#         Weather Data for {report_date}
-#         Parameter\tValue\tOptimal Range for Maize
-#         Temperature\t{temp} °C\t18°C – 32°C
-#         Precipitation\t{precipitation} mm\t450-600 mm/month
-#         Wind Speed\t{wind_speed} m/s\t<5 m/s
-#         Humidity\t{humidity} %\t50%-60%
-
-#         Visualizations
-#         1. Temperature Trends
-#         2. Precipitation Levels
-#         3. Wind Speed Trends
-#         4. Humidity Levels
-
-#         Interpretation for Maize Farmers
-#         - Temperature: Conditions are ideal for maize growth.
-#         - Precipitation: Sufficient rainfall, no need for irrigation.
-#         - Wind Speed: Remained low, ideal for crop stability.
-#         - Humidity: Within optimal range, minimal disease risk.
-
-#         Recommendations for Farmers
-#         - Irrigation Management: Monitor rainfall patterns closely for changes.
-#         - Fertilization Timing: Good time for applying fertilizers.
-#         - Pest & Disease Monitoring: Regular crop inspection is advised.
-#         """
-
-#         # Create a new page for the report content
-#         pdf = f"{pdf_content}\n\n"
-#         pdf += buffer.getvalue()
-
-#         return pdf
-
-#     else:
-#         st.error("Insufficient weather data to generate the PDF.")
-#         return None
+        Recommendations:
+        - Temperature: The average temperature is {avg_temp}°C, which is { "within" if 18 <= avg_temp <= 32 else "outside" } the optimal range for maize. Adjust irrigation and fertilization accordingly.
+        - Precipitation: The total precipitation was {total_precipitation} mm. { "This is sufficient" if total_precipitation >= 450 and total_precipitation <= 600 else "Irrigation may be required" } for optimal crop health.
+        - Wind Speed: With an average wind speed of {avg_wind_speed} m/s, { "it is safe for crop stability." if avg_wind_speed <= 3 else "extra precautions may be needed." }
+        - Humidity: The humidity level is {avg_humidity}%, which { "fits" if 60 <= avg_humidity <= 80 else "does not fit" } the optimal range for maize crops.
+        """
+        
+        return buffer, report_content
+    else:
+        st.error("Insufficient weather data to generate the PDF.")
+        return None, None
 
 
 # Main app UI layout
@@ -230,14 +173,14 @@ st.title("🌾 Kenya Farmer Weather & NDVI Dashboard")
 st.write("Plan your farming with real-time weather and crop health data.")
 
 st.sidebar.header("Settings")
-map_type = st.sidebar.selectbox("Select Map Type", ["Precipitation", "Temperature", "NDVI"])
+map_type = st.sidebar.selectbox("Select Map Type", ["NDVI", "Precipitation", "Temperature"])
 layer_type = st.sidebar.radio("Select Map Layer", ["OpenWeather", "Google Satellite"])
 enable_location = st.sidebar.checkbox("Enable Location")
 
-counties = ["Nairobi", "Mombasa", "Kisumu"]  # Placeholder counties
-constituencies = {"Nairobi": ["Westlands", "Lang'ata"], "Mombasa": ["Likoni", "Nyali"], "Kisumu": ["Kisumu Central", "Kisumu West"]}
-selected_county = st.sidebar.selectbox("Filter by County", counties)
-selected_constituency = st.sidebar.selectbox("Filter by Constituency", constituencies.get(selected_county, []))
+# counties = ["Nairobi", "Mombasa", "Kisumu"]  # Placeholder counties
+# constituencies = {"Nairobi": ["Westlands", "Lang'ata"], "Mombasa": ["Likoni", "Nyali"], "Kisumu": ["Kisumu Central", "Kisumu West"]}
+# selected_county = st.sidebar.selectbox("Filter by County", counties)
+# selected_constituency = st.sidebar.selectbox("Filter by Constituency", constituencies.get(selected_county, []))
 
 user_location = [-1.2921, 36.8219] if not enable_location else None
 
@@ -283,8 +226,16 @@ if map_data and 'all_drawings' in map_data and map_data['all_drawings']:
         else:
             st.error("⚠️ **Low NDVI Detected:** Poor vegetation health; maize may struggle to grow.")
 
-    generate_pdf_button = st.button("Generate PDF Report")
-    if generate_pdf_button:
-        pdf = generate_pdf(weather_data, ndvi_value, lat, lon)
-        if pdf:
+    if st.button("Generate PDF"):
+        pdf, report_content = generate_pdf(weather_data, ndvi_value, lat, lon)
+        
+        if pdf is not None:
+            st.success("PDF generated successfully!")
+            
+            # Allow user to download the PDF
             st.download_button("Download PDF", data=pdf, file_name="weather_report.pdf", mime="application/pdf")
+            
+            # Optionally display report content
+            st.write(report_content)
+        else:
+            st.error("Failed to generate PDF.")
